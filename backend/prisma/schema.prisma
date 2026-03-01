@@ -1,0 +1,368 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum SlotType {
+  SOLO
+  DUAL
+  MAINTENANCE
+}
+
+enum QualificationMode {
+  OFF
+  WARNING
+  RESTRICTED
+}
+
+enum SubscriptionMode {
+  OFF
+  WARNING
+  RESTRICTED
+}
+
+enum AllocatingRule {
+  SPECIFIC
+  BY_TYPE
+}
+
+enum RegistrationMode {
+  OPEN
+  INVITE
+  DISABLED
+}
+
+// ─── Members ─────────────────────────────────────────────────────────────────
+
+model Member {
+  id                   String    @id @default(cuid())
+  email                String    @unique
+  firstName            String    @map("first_name")
+  lastName             String    @map("last_name")
+  passwordHash         String    @map("password_hash")
+  fiscalCode           String?   @map("fiscal_code")
+  dateOfBirth          DateTime? @map("date_of_birth") @db.Date
+  address              String?
+  zipCode              String?   @map("zip_code")
+  city                 String?
+  state                String?
+  country              String?   @default("IT")
+  homePhone            String?   @map("home_phone")
+  workPhone            String?   @map("work_phone")
+  cellPhone            String?   @map("cell_phone")
+  memberNumber         String?   @map("member_number")
+  subscriptionExpiry   DateTime? @map("subscription_expiry") @db.Date
+  flightsPaid          Boolean   @default(true) @map("flights_paid")
+  emailVerified        Boolean   @default(false) @map("email_verified")
+  active               Boolean   @default(true)
+  language             String    @default("it")
+  timezone             String    @default("Europe/Rome")
+  notificationEnabled  Boolean   @default(true) @map("notification_enabled")
+  privacyFlags         Int       @default(0) @map("privacy_flags")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // Relations
+  memberRoles          MemberRole[]
+  qualifications       MemberQualification[]
+  instructor           Instructor?
+  bookingsAsPilot      Booking[]        @relation("PilotBookings")
+  bookingsAsInstructor Booking[]        @relation("InstructorBookings")
+  bookingsCreated      Booking[]        @relation("CreatedBookings")
+  refreshTokens        RefreshToken[]
+  auditLogs            AuditLog[]
+
+  @@map("members")
+}
+
+// ─── Roles ───────────────────────────────────────────────────────────────────
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  permissions String[] @default([])
+  isSystem    Boolean  @default(false) @map("is_system")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  // Relations
+  memberRoles MemberRole[]
+
+  @@map("roles")
+}
+
+model MemberRole {
+  memberId String @map("member_id")
+  roleId   String @map("role_id")
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([memberId, roleId])
+  @@map("member_roles")
+}
+
+// ─── Aircraft ────────────────────────────────────────────────────────────────
+
+model Aircraft {
+  id           String   @id @default(cuid())
+  callsign     String   @unique
+  type         String
+  seats        Int
+  hourlyRate   Decimal? @map("hourly_rate") @db.Decimal(10, 2)
+  nonBookable  Boolean  @default(false) @map("non_bookable")
+  displayOrder Int      @default(0) @map("display_order")
+  comments     String?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // Relations
+  bookings                  Booking[]
+  qualificationRequirements AircraftQualification[]
+
+  @@map("aircraft")
+}
+
+// ─── Bookings ────────────────────────────────────────────────────────────────
+
+model Booking {
+  id           String   @id @default(cuid())
+  startDate    DateTime @map("start_date") @db.Timestamptz()
+  endDate      DateTime @map("end_date") @db.Timestamptz()
+  aircraftId   String   @map("aircraft_id")
+  memberId     String   @map("member_id")
+  slotType     SlotType @map("slot_type")
+  instructorId String?  @map("instructor_id")
+  freeSeats    Int      @default(0) @map("free_seats")
+  comments     String?
+  createdBy    String   @map("created_by")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // Relations
+  aircraft   Aircraft @relation(fields: [aircraftId], references: [id])
+  member     Member   @relation("PilotBookings", fields: [memberId], references: [id])
+  instructor Member?  @relation("InstructorBookings", fields: [instructorId], references: [id])
+  creator    Member   @relation("CreatedBookings", fields: [createdBy], references: [id])
+
+  @@index([startDate, endDate])
+  @@index([aircraftId, startDate, endDate])
+  @@index([memberId, startDate])
+  @@index([instructorId, startDate])
+  @@map("bookings")
+}
+
+// ─── Qualifications ──────────────────────────────────────────────────────────
+
+model Qualification {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  hasExpiry   Boolean  @default(true) @map("has_expiry")
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  // Relations
+  memberQualifications MemberQualification[]
+  aircraftRequirements AircraftQualification[]
+
+  @@map("qualifications")
+}
+
+model MemberQualification {
+  id              String    @id @default(cuid())
+  memberId        String    @map("member_id")
+  qualificationId String    @map("qualification_id")
+  expiryDate      DateTime? @map("expiry_date") @db.Date
+  noAlert         Boolean   @default(false) @map("no_alert")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // Relations
+  member        Member        @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  qualification Qualification @relation(fields: [qualificationId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, qualificationId])
+  @@map("member_qualifications")
+}
+
+model AircraftQualification {
+  id              String @id @default(cuid())
+  aircraftId      String @map("aircraft_id")
+  checkGroup      Int    @map("check_group")
+  qualificationId String @map("qualification_id")
+
+  // Relations
+  aircraft      Aircraft      @relation(fields: [aircraftId], references: [id], onDelete: Cascade)
+  qualification Qualification @relation(fields: [qualificationId], references: [id], onDelete: Cascade)
+
+  @@unique([aircraftId, checkGroup, qualificationId])
+  @@map("aircraft_qualifications")
+}
+
+// ─── Instructors ─────────────────────────────────────────────────────────────
+
+model Instructor {
+  id           String   @id @default(cuid())
+  memberId     String   @unique @map("member_id")
+  trigram      String   @unique @db.VarChar(3)
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  // Relations
+  member              Member                @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  regularAvailability RegularAvailability[]
+  exceptions          AvailabilityException[]
+
+  @@map("instructors")
+}
+
+model RegularAvailability {
+  id           String @id @default(cuid())
+  instructorId String @map("instructor_id")
+  startDay     Int    @map("start_day")
+  startTime    String @map("start_time") @db.VarChar(5)
+  endDay       Int    @map("end_day")
+  endTime      String @map("end_time") @db.VarChar(5)
+
+  // Relations
+  instructor Instructor @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+
+  @@map("regular_availability")
+}
+
+model AvailabilityException {
+  id           String   @id @default(cuid())
+  instructorId String   @map("instructor_id")
+  startDate    DateTime @map("start_date") @db.Timestamptz()
+  endDate      DateTime @map("end_date") @db.Timestamptz()
+  isPresent    Boolean  @map("is_present")
+
+  // Relations
+  instructor Instructor @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+
+  @@map("availability_exceptions")
+}
+
+// ─── Club Configuration ──────────────────────────────────────────────────────
+
+model ClubConfig {
+  id                        String            @id @default("default")
+  clubName                  String            @map("club_name")
+  clubLogo                  Bytes?            @map("club_logo")
+  clubLogoMime              String?           @map("club_logo_mime")
+  clubWebsite               String?           @map("club_website")
+  icaoCode                  String?           @map("icao_code")
+  firstHour                 String            @default("07:00") @map("first_hour") @db.VarChar(5)
+  lastHour                  String            @default("21:00") @map("last_hour") @db.VarChar(5)
+  defaultTimezone           String            @default("Europe/Rome") @map("default_timezone")
+  defaultLanguage           String            @default("it") @map("default_language")
+  defaultSlotDuration       Int               @default(60) @map("default_slot_duration")
+  minSlotDuration           Int               @default(30) @map("min_slot_duration")
+  infoMessage               String?           @map("info_message")
+  mailFromAddress           String?           @map("mail_from_address")
+  smtpHost                  String?           @map("smtp_host")
+  smtpPort                  Int?              @map("smtp_port")
+  smtpUser                  String?           @map("smtp_user")
+  smtpPass                  String?           @map("smtp_pass")
+  bookDateLimitWeeks        Int               @default(4) @map("book_date_limit_weeks")
+  bookDurationLimitHours    Int               @default(0) @map("book_duration_limit_hours")
+  bookInstructionMinMinutes Int               @default(0) @map("book_instruction_min_minutes")
+  bookAllocatingRule        AllocatingRule    @default(SPECIFIC) @map("book_allocating_rule")
+  bookCommentEnabled        Boolean           @default(false) @map("book_comment_enabled")
+  qualificationMode         QualificationMode @default(OFF) @map("qualification_mode")
+  subscriptionMode          SubscriptionMode  @default(OFF) @map("subscription_mode")
+  registrationMode          RegistrationMode  @default(INVITE) @map("registration_mode")
+  updatedAt                 DateTime          @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@map("club_config")
+}
+
+// ─── Audit Logs ──────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  timestamp DateTime @default(now()) @db.Timestamptz()
+  userId    String?  @map("user_id")
+  action    String
+  entity    String
+  entityId  String?  @map("entity_id")
+  oldValues Json?    @map("old_values")
+  newValues Json?    @map("new_values")
+  ipAddress String?  @map("ip_address")
+
+  // Relations
+  user Member? @relation(fields: [userId], references: [id])
+
+  @@index([timestamp(sort: Desc)])
+  @@index([userId, timestamp(sort: Desc)])
+  @@index([entity, entityId, timestamp(sort: Desc)])
+  @@map("audit_logs")
+}
+
+// ─── Refresh Tokens ──────────────────────────────────────────────────────────
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  memberId  String   @map("member_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz()
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  revoked   Boolean  @default(false)
+
+  // Relations
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId])
+  @@map("refresh_tokens")
+}
+
+// ─── ICAO Airfields ──────────────────────────────────────────────────────────
+
+model IcaoAirfield {
+  icaoCode  String  @id @map("icao_code")
+  name      String
+  latitude  Decimal @db.Decimal(10, 6)
+  longitude Decimal @db.Decimal(10, 6)
+  altitude  Int     @default(0)
+
+  // Relations
+  sunriseSunsetCache SunriseSunsetCache[]
+
+  @@map("icao_airfields")
+}
+
+// ─── Sunrise/Sunset Cache ────────────────────────────────────────────────────
+
+model SunriseSunsetCache {
+  date     DateTime  @db.Date
+  icaoCode String    @map("icao_code")
+  sunrise  DateTime? @db.Timestamptz()
+  sunset   DateTime? @db.Timestamptz()
+  aeroDawn DateTime? @map("aero_dawn") @db.Timestamptz()
+  aeroDusk DateTime? @map("aero_dusk") @db.Timestamptz()
+
+  // Relations
+  airfield IcaoAirfield @relation(fields: [icaoCode], references: [icaoCode])
+
+  @@id([date, icaoCode])
+  @@map("sunrise_sunset_cache")
+}
+
+// ─── Login Attempts ──────────────────────────────────────────────────────────
+
+model LoginAttempt {
+  id          String   @id @default(cuid())
+  identifier  String
+  type        String   @db.VarChar(10)
+  attemptedAt DateTime @default(now()) @map("attempted_at") @db.Timestamptz()
+  success     Boolean
+
+  @@index([identifier, type, attemptedAt(sort: Desc)])
+  @@map("login_attempts")
+}

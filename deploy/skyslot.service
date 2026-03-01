@@ -1,0 +1,17 @@
+[Unit]
+Description=SkySlot Aeroclub Management
+After=network.target postgresql.service
+
+[Service]
+Type=forking
+User=skyslot
+WorkingDirectory=/opt/skyslot
+ExecStart=/usr/bin/pm2 start deploy/ecosystem.config.cjs --env production
+ExecReload=/usr/bin/pm2 reload skyslot-api
+ExecStop=/usr/bin/pm2 stop skyslot-api
+PIDFile=/home/skyslot/.pm2/pm2.pid
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

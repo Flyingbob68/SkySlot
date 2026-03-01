@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+
+# Prisma
+backend/prisma/*.db
+backend/prisma/*.db-journal
+
+# Temp
+tmp/
+.tmp/
+
+# Reference repos (analysis only)
+_ref_openflyers/
+_ref_claude_code/
+
+# Claude Code local data
+.claude/
+
+# Old site (legacy PHP)
+old_site/
+
+# Prisma generated client (regenerated from schema)
+backend/src/generated/
+
+# Temp scripts and test files
+check-columns.mjs
+test-*.sh
+test-*.json
