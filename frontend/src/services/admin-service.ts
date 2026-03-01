@@ -107,6 +107,14 @@ export interface AuditQueryParams {
 // Config API
 // ---------------------------------------------------------------------------
 
+export interface PublicConfig {
+  readonly clubName: string;
+  readonly hasLogo: boolean;
+}
+
+export const getPublicConfig = () =>
+  get<PublicConfig>('/admin/config/public');
+
 export const getConfig = () =>
   get<ClubConfig>('/admin/config');
 
@@ -140,6 +148,9 @@ export const uploadLogo = async (file: File): Promise<ApiResponse<MessageRespons
     };
   }
 };
+
+export const sendTestEmail = () =>
+  post<MessageResponse>('/admin/config/test-email', {});
 
 // ---------------------------------------------------------------------------
 // Roles API

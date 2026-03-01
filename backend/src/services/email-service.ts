@@ -226,3 +226,50 @@ export function sendEmail(
 export function getQueueLength(): number {
   return queue.length;
 }
+
+/**
+ * Send a test email to verify SMTP configuration.
+ *
+ * Unlike `sendEmail`, this runs synchronously (not queued) so we can
+ * return success/failure to the caller immediately.
+ */
+export async function sendTestEmail(recipientEmail: string): Promise<{ success: boolean; error?: string }> {
+  const smtpConfig = await resolveSmtpConfig();
+
+  if (!smtpConfig) {
+    return { success: false, error: 'Configurazione SMTP non completa. Compila tutti i campi e salva prima di inviare il test.' };
+  }
+
+  const transport = createTransport(smtpConfig);
+
+  try {
+    // Verify connection first
+    await transport.verify();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { success: false, error: `Connessione al server SMTP fallita: ${message}` };
+  }
+
+  try {
+    await transport.sendMail({
+      from: smtpConfig.from,
+      to: recipientEmail,
+      subject: 'SkySlot - Email di prova',
+      text: 'Questa e\' un\'email di prova inviata da SkySlot per verificare la configurazione SMTP.\n\nSe ricevi questo messaggio, la configurazione e\' corretta!',
+      html: [
+        '<div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">',
+        '<h2 style="color: #1e40af;">SkySlot - Email di prova</h2>',
+        '<p>Questa e\' un\'email di prova inviata da <strong>SkySlot</strong> per verificare la configurazione SMTP.</p>',
+        '<p style="color: #16a34a; font-weight: bold;">Se ricevi questo messaggio, la configurazione e\' corretta!</p>',
+        '</div>',
+      ].join(''),
+    });
+
+    console.log(`[email] Test email sent successfully to ${recipientEmail}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[email] Test email failed to ${recipientEmail}:`, err);
+    return { success: false, error: `Invio fallito: ${message}` };
+  }
+}

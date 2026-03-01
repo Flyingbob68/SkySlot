@@ -375,6 +375,26 @@ function ValidazioneTab({ form, onChange }: TabProps) {
 // ---------------------------------------------------------------------------
 
 function EmailTab({ form, onChange }: TabProps) {
+  const [testSending, setTestSending] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const handleTestEmail = useCallback(async () => {
+    setTestSending(true);
+    setTestResult(null);
+
+    const result = await adminApi.sendTestEmail();
+
+    if (result.success && result.data) {
+      setTestResult({ ok: true, msg: result.data.message });
+    } else {
+      setTestResult({ ok: false, msg: result.error ?? 'Errore durante l\'invio' });
+    }
+
+    setTestSending(false);
+  }, []);
+
+  const smtpConfigured = Boolean(form.smtpHost && form.smtpPort && form.smtpUser && form.smtpPass);
+
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
@@ -420,6 +440,31 @@ function EmailTab({ form, onChange }: TabProps) {
           placeholder="noreply@aeroclub.it"
         />
       </FormField>
+
+      {/* Test email button */}
+      <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleTestEmail}
+            disabled={testSending || !smtpConfigured}
+          >
+            {testSending ? 'Invio in corso...' : 'Invia email di prova'}
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            {smtpConfigured
+              ? 'Invia un messaggio di test al tuo indirizzo email per verificare la configurazione SMTP.'
+              : 'Compila tutti i campi SMTP e salva la configurazione prima di inviare il test.'}
+          </p>
+        </div>
+        {testResult && (
+          <p className={`text-sm ${testResult.ok ? 'text-green-600' : 'text-destructive'}`}>
+            {testResult.msg}
+          </p>
+        )}
+      </div>
+
       <FormField label="Messaggio Informativo">
         <textarea
           value={form.infoMessage ?? ''}

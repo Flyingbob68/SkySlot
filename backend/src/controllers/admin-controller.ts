@@ -6,10 +6,11 @@
  */
 
 import type { Request, Response } from 'express';
-import { successResponse, paginatedResponse } from '../utils/api-response.js';
+import { successResponse, errorResponse, paginatedResponse } from '../utils/api-response.js';
 import * as adminService from '../services/admin-service.js';
 import * as auditService from '../services/audit-service.js';
 import * as statsService from '../services/stats-service.js';
+import { sendTestEmail as sendTestEmailService } from '../services/email-service.js';
 import type { UpdateConfigInput, CreateRoleInput, UpdateRoleInput } from '../schemas/admin-schemas.js';
 
 // ---------------------------------------------------------------------------
@@ -63,6 +64,45 @@ export const uploadLogo = async (req: Request, res: Response): Promise<void> => 
   );
 
   res.json(successResponse(result));
+};
+
+export const getLogo = async (_req: Request, res: Response): Promise<void> => {
+  const config = await adminService.getLogo();
+
+  if (!config || !config.clubLogo || !config.clubLogoMime) {
+    res.status(404).json(successResponse(null));
+    return;
+  }
+
+  res.setHeader('Content-Type', config.clubLogoMime);
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.send(Buffer.from(config.clubLogo));
+};
+
+export const getPublicConfig = async (_req: Request, res: Response): Promise<void> => {
+  const config = await adminService.getPublicConfig();
+  res.json(successResponse(config));
+};
+
+// ---------------------------------------------------------------------------
+// Test Email
+// ---------------------------------------------------------------------------
+
+export const sendTestEmail = async (req: Request, res: Response): Promise<void> => {
+  const email = req.user?.email;
+
+  if (!email) {
+    res.status(400).json(errorResponse('Indirizzo email utente non disponibile'));
+    return;
+  }
+
+  const result = await sendTestEmailService(email);
+
+  if (result.success) {
+    res.json(successResponse({ message: `Email di prova inviata a ${email}` }));
+  } else {
+    res.status(422).json(errorResponse(result.error ?? 'Invio email di prova fallito'));
+  }
 };
 
 // ---------------------------------------------------------------------------

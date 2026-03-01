@@ -25,8 +25,20 @@ const upload = multer({
 });
 
 // ---------------------------------------------------------------------------
-// Club Configuration
+// Club Configuration (public endpoints first - order matters for Express)
 // ---------------------------------------------------------------------------
+
+// GET /config/logo (public - serves binary image)
+adminRouter.get(
+  '/config/logo',
+  adminController.getLogo,
+);
+
+// GET /config/public (public - minimal club info for login page)
+adminRouter.get(
+  '/config/public',
+  adminController.getPublicConfig,
+);
 
 // GET /config
 adminRouter.get(
@@ -52,6 +64,14 @@ adminRouter.post(
   requirePermission('club:configure'),
   upload.single('logo'),
   adminController.uploadLogo,
+);
+
+// POST /config/test-email
+adminRouter.post(
+  '/config/test-email',
+  authenticate,
+  requirePermission('club:configure'),
+  adminController.sendTestEmail,
 );
 
 // ---------------------------------------------------------------------------
