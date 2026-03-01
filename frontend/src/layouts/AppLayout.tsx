@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -16,8 +16,11 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
+import { useConfigStore } from '@/stores/config-store';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+
+const APP_VERSION = '0.1.0';
 
 interface NavSubItem {
   readonly label: string;
@@ -171,8 +174,27 @@ function SidebarNavItem({ item, onNavigate }: {
   );
 }
 
+function ClubLogo() {
+  const { config } = useConfigStore();
+
+  const logoSrc = config?.hasLogo
+    ? '/api/admin/config/logo'
+    : '/logo_skyslot.png';
+
+  const altText = config?.clubName ?? 'SkySlot';
+
+  return (
+    <img
+      src={logoSrc}
+      alt={altText}
+      className="h-10 w-10 rounded-md object-contain"
+    />
+  );
+}
+
 function SidebarContent({ onNavigate }: { readonly onNavigate?: () => void }) {
   const { user } = useAuthStore();
+  const { config } = useConfigStore();
   const userPermissions = user?.permissions ?? [];
 
   const visibleItems = NAV_ITEMS.filter((item) => {
@@ -180,11 +202,16 @@ function SidebarContent({ onNavigate }: { readonly onNavigate?: () => void }) {
     return userPermissions.includes(item.permission);
   });
 
+  const clubName = config?.clubName ?? '';
+
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-16 items-center gap-2 border-b border-sidebar-border px-4">
-        <Plane className="h-6 w-6 text-primary" />
-        <span className="text-lg font-bold tracking-tight">SkySlot</span>
+      {/* Club logo + name */}
+      <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-4">
+        <ClubLogo />
+        <span className="text-sm font-semibold leading-tight text-sidebar-foreground truncate">
+          {clubName}
+        </span>
       </div>
 
       <nav className="flex-1 overflow-y-auto p-3">
@@ -198,6 +225,25 @@ function SidebarContent({ onNavigate }: { readonly onNavigate?: () => void }) {
           ))}
         </ul>
       </nav>
+
+      {/* App name + version */}
+      <div className="border-t border-sidebar-border px-4 py-3">
+        <div className="flex items-center gap-2">
+          <img
+            src="/logo_skyslot.png"
+            alt="SkySlot"
+            className="h-6 w-6 rounded object-contain"
+          />
+          <div className="flex flex-col">
+            <span className="text-sm font-bold leading-tight tracking-tight text-sidebar-foreground">
+              SkySlot
+            </span>
+            <span className="text-[10px] leading-tight text-muted-foreground">
+              v{APP_VERSION}
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -208,12 +254,15 @@ function Header({
   readonly onMenuToggle: () => void;
 }) {
   const { user, clearAuth } = useAuthStore();
+  const { config } = useConfigStore();
   const navigate = useNavigate();
 
   const handleLogout = useCallback(() => {
     clearAuth();
     navigate('/login');
   }, [clearAuth, navigate]);
+
+  const clubName = config?.clubName ?? '';
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-border bg-card px-4">
@@ -227,9 +276,13 @@ function Header({
         >
           <Menu className="h-5 w-5" />
         </Button>
-        <span className="text-sm font-medium text-muted-foreground">
-          Aeroclub
-        </span>
+        {/* Show club logo + name on mobile (hidden on desktop where sidebar is visible) */}
+        <div className="flex items-center gap-2 lg:hidden">
+          <ClubLogo />
+          <span className="text-sm font-semibold text-foreground truncate max-w-[150px]">
+            {clubName}
+          </span>
+        </div>
       </div>
 
       <div className="flex items-center gap-3">
@@ -261,6 +314,13 @@ function Header({
 
 export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { fetchConfig, config } = useConfigStore();
+
+  useEffect(() => {
+    if (!config) {
+      fetchConfig();
+    }
+  }, [config, fetchConfig]);
 
   const handleMenuToggle = useCallback(() => {
     setSidebarOpen((prev) => !prev);
